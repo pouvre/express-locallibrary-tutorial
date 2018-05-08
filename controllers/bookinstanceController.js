@@ -143,11 +143,77 @@ exports.bookinstance_delete_post = function(req, res) {
 
 // Display BookInstance update form on GET.
 exports.bookinstance_update_get = function(req, res) {
-    res.send('NOT IMPLEMENTED: BookInstance update GET');
+    
+     // Get book, authors and genres for form.
+    async.parallel({
+        bookinstance: function(callback) {
+            BookInstance.findById(req.params.id).populate('book').exec(callback);
+        },
+        books: function(callback) {
+            Book.find(callback);
+        },
+        }, function(err, results) {
+            if (err) { return next(err); }
+            if (results.bookinstance==null) { // No results.
+                var err = new Error('Book instance not found');
+                err.status = 404;
+                return next(err);
+            }
+            // Success.
+            // Mark our selected genres as checked.
+            res.render('bookinstance_form', { title: 'Update  BookInstance', book_list : results.books, selected_book : results.bookinstance.book._id, bookinstance:results.bookinstance });
+        });
 };
 
 // Handle bookinstance update on POST.
-exports.bookinstance_update_post = function(req, res) {
-    res.send('NOT IMPLEMENTED: BookInstance update POST');
-};
+exports.bookinstance_update_post = [
+   
+    body('book', 'Book must be specified').isLength({ min: 1 }).trim(),
+    body('imprint', 'Imprint must be specified').isLength({ min: 1 }).trim(),
+    body('due_back', 'Invalid date').optional({ checkFalsy: true }).isISO8601(),
+    
+    // Sanitize fields.
+    sanitizeBody('book').trim().escape(),
+    sanitizeBody('imprint').trim().escape(),
+    sanitizeBody('status').trim().escape(),
+    sanitizeBody('due_back').toDate(),
 
+    // Process request after validation and sanitization.
+    (req, res, next) => {
+
+        // Extract the validation errors from a request.
+        const errors = validationResult(req);
+
+        // Create a BookInstance object with escaped/trimmed data and old id.
+        var bookinstance = new BookInstance(
+          { book: req.body.book,
+            imprint: req.body.imprint,
+            status: req.body.status,
+            due_back: req.body.due_back_field,
+            _id:req.params.id //This is required, or a new ID will be assigned!
+           });
+
+        if (!errors.isEmpty()) {
+            // There are errors. Render form again with sanitized values/error messages.
+
+            // Get all books for form.
+            async.parallel({
+                books: function(callback) {
+                    Book.find(callback);
+                },
+            }, function(err, results) {
+                if (err) { return next(err); }
+                res.render('bookinstance_form', { title: 'Update  BookInstance', book_list : results.books, selected_book : bookinstance.book._id, bookinstance: bookinstance });
+            });
+            return;
+        }
+        else {
+            // Data from form is valid. Update the record.
+            BookInstance.findByIdAndUpdate(req.params.id, bookinstance, {}, function (err,thebookinstance) {
+                if (err) { return next(err); }
+                // Successful - redirect to book detail page.
+                 res.redirect(thebookinstance.url);
+            });
+        }
+    }
+];
