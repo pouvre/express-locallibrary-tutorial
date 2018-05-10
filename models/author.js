@@ -45,6 +45,18 @@ AuthorSchema
   moment(this.date_of_death).format('MMMM Do, YYYY'): '';
 });
 
+AuthorSchema
+.virtual('date_of_birth_field')
+.get(function () {
+  return moment(this.date_of_birth).format('YYYY-MM-DD');
+});
+
+AuthorSchema
+.virtual('date_of_death_field')
+.get(function () {
+  return moment(this.date_of_death).format('YYYY-MM-DD');
+});
+
 //Export model
 module.exports = mongoose.model('Author', AuthorSchema);
 
